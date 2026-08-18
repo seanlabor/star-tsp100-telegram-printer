@@ -143,6 +143,18 @@ belongs to Star Micronics. You can find the printer in two ways:
 
 ## Run as a service (Debian)
 
+`deploy.sh` does all of the following over SSH. Run it again after every code change:
+
+    ./deploy.sh user@host
+
+It ships the code and the font, creates the virtualenv, installs the unit, and runs
+the self-test before it restarts anything. It never overwrites
+`/etc/telegram-printer.env`, because that file holds your bot token. It also refuses
+to start the service while the token is empty, because that only produces a restart
+loop. The target host needs passwordless sudo.
+
+The manual equivalent, if you would rather do it by hand:
+
     sudo mkdir -p /opt/telegram-printer
     sudo cp print_bot.py /opt/telegram-printer/
     sudo python3 -m venv /opt/telegram-printer/.venv
