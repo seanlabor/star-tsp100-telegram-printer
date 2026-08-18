@@ -42,7 +42,7 @@ If you found this by searching for one of these, you are in the right place:
     python3 -m venv .venv
     .venv/bin/pip install pillow
 
-Debian also needs a monospace font. Install one with `sudo apt install fonts-dejavu-core`.
+The repository ships the font it renders with, so there is nothing else to install.
 
 ## Run
 
@@ -60,6 +60,21 @@ Only the user IDs in `TELEGRAM_ALLOWED` can print. The bot ignores every other u
 | `--image FILE` | Prints any image file. |
 | `--diagnose` | Shows the bot identity, the webhook status, and pending updates. |
 
+## Ticket layout
+
+The bot takes the first line of a message as the title. Everything after that line is
+the body:
+
+    Muell rausbringen
+    Gelbe Tonne, und die Papiertonne steht schon draussen.
+
+The title prints large. A rule separates the title from the body. The creation time
+prints at the foot of the ticket as `Erstellt: 18.08.2026 19:05`. A message of one line
+prints as a title alone, with no rule and no body.
+
+The bot wraps every line by measured pixel width, not by character count, because the
+font is proportional. A word wider than the paper is broken with a hyphen.
+
 ## Printing pictures
 
     .venv/bin/python print_bot.py --image examples/donkey.png
@@ -75,7 +90,8 @@ Or send the photo to your bot. The bot processes each image in four steps:
 
 ![example: dithered for a 1-bit thermal head](examples/donkey-dithered.png)
 
-The bot prints the caption above the image. If an image is taller than `PRINTER_MAX_MM`,
+Photos print bare. The bot prints the caption above the image as plain body text, with
+no rule and no timestamp. If an image is taller than `PRINTER_MAX_MM`,
 the bot scales the image to fit. This keeps the bot from unrolling the whole paper roll.
 
 ## Configuration
@@ -86,8 +102,8 @@ the bot scales the image to fit. This keeps the bot from unrolling the whole pap
 | `TELEGRAM_ALLOWED` | — | Telegram user IDs that can print, separated by commas |
 | `PRINTER_HOST` | `192.168.1.50` | Printer IP address |
 | `PRINTER_PORT` | `9100` | Raw print port |
-| `PRINTER_FONT` | auto | Menlo on macOS, DejaVu Sans Mono on Debian |
-| `PRINTER_FONT_SIZE` | `24` | The column count follows. 24 pt gives 41 columns on 80 mm paper. |
+| `PRINTER_FONT` | bundled Cabin | Path to a font file. Overrides `fonts/Cabin-Regular.ttf`. |
+| `PRINTER_FONT_SIZE` | `32` | Body size in points. The title is 1.5 times this size. The footer is 0.75 times this size. |
 | `PRINTER_MARGIN_MM` | `20` | Blank paper after each receipt |
 | `PRINTER_MAX_MM` | `200` | The bot scales taller images to fit |
 | `PRINTER_FEED` | `0` | Extra feed lines before the cut. Raise this if the last line is clipped. |
