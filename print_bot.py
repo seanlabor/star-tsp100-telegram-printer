@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Print Telegram messages on a Star TSP143 (TSP100 futurePRNT) over port 9100.
 
-The TSP100 family is raster-only: it ignores ESC/POS and Star Line Mode text,
-so every message is rendered to a 1-bit bitmap and sent as Star raster data.
+The TSP100 family is raster-only. It ignores ESC/POS text and Star Line Mode
+text. The bot therefore renders every message to a 1-bit bitmap. It sends that
+bitmap to the printer as Star raster data.
 
 Env:
   TELEGRAM_TOKEN     bot token from @BotFather           (required)
@@ -12,7 +13,7 @@ Env:
   PRINTER_FONT       default /System/Library/Fonts/Menlo.ttc
   PRINTER_FONT_SIZE  default 24
 
-Usage: print_bot.py [--selftest | --test-print | --diagnose]
+Usage: print_bot.py [--selftest | --test-print | --image FILE | --diagnose]
 """
 import io, json, os, socket, sys, textwrap, time
 import urllib.error, urllib.parse, urllib.request
@@ -43,8 +44,9 @@ FONTS = [os.environ.get("PRINTER_FONT", ""),
          "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf"]
 FONT_PATH = next((f for f in FONTS if f and os.path.exists(f)), None)
 if FONT_PATH is None:
-    sys.exit(f"no monospace font found, tried {FONTS[1:]} - "
-             f"apt install fonts-dejavu-core, or set PRINTER_FONT")
+    sys.exit(f"No monospace font found. The bot tried these paths: {FONTS[1:]}. "
+             f"Install a monospace font with 'apt install fonts-dejavu-core'. "
+             f"Or set PRINTER_FONT to the path of a font file.")
 # ponytail: knob for paper width / legibility — bump the size and COLS follows
 FONT = ImageFont.truetype(FONT_PATH, int(os.environ.get("PRINTER_FONT_SIZE", "24")))
 COLS = int(DOTS // FONT.getlength("M"))
@@ -134,21 +136,26 @@ def api(method, _timeout=40, **params):
 
 def main():
     if not TOKEN or not ALLOWED:
-        sys.exit("set TELEGRAM_TOKEN and TELEGRAM_ALLOWED")
-    print(f"printing to {HOST}:{PORT} at {COLS} cols for {sorted(ALLOWED)}", file=sys.stderr)
+        sys.exit("Set TELEGRAM_TOKEN to your bot token from @BotFather. "
+                 "Set TELEGRAM_ALLOWED to one or more Telegram user IDs. "
+                 "Separate the user IDs with commas.")
+    print(f"The bot prints to {HOST}:{PORT}. Each line holds {COLS} characters. "
+          f"The bot accepts messages from these user IDs: {sorted(ALLOWED)}.",
+          file=sys.stderr)
     offset = 0
     while True:
         try:
             updates = api("getUpdates", offset=offset, timeout=30)["result"]
         except urllib.error.HTTPError as e:
             if e.code in (401, 404):               # bad token: retrying cannot fix it
-                sys.exit(f"telegram rejected the token ({e.code}) - "
-                         f"check TELEGRAM_TOKEN, it ends ...{TOKEN[-6:]!r}")
-            print("telegram:", e, file=sys.stderr)
+                sys.exit(f"Telegram rejected the bot token. The HTTP status was "
+                         f"{e.code}. Check TELEGRAM_TOKEN. The current token ends "
+                         f"with {TOKEN[-6:]!r}.")
+            print(f"The request to Telegram failed: {e}", file=sys.stderr)
             time.sleep(5)
             continue
         except Exception as e:                     # network blip, bad gateway, ...
-            print("telegram:", e, file=sys.stderr)
+            print(f"The request to Telegram failed: {e}", file=sys.stderr)
             time.sleep(5)
             continue
         for upd in updates:
@@ -162,21 +169,28 @@ def main():
                        if doc.get("mime_type", "").startswith("image/") else None)
             if sender not in ALLOWED or not (text or file_id):
                 # silence here is why a dropped message looks like a broken printer
-                print(f"skip: from={sender} allowed={sorted(ALLOWED)} keys={sorted(msg)}",
-                      file=sys.stderr)
+                if sender not in ALLOWED:
+                    why = (f"User {sender} is not in TELEGRAM_ALLOWED. "
+                           f"These user IDs can print: {sorted(ALLOWED)}.")
+                else:
+                    why = (f"The message has no text and no image. "
+                           f"It contains these fields: {sorted(msg)}.")
+                print(f"The bot ignored a message. {why}", file=sys.stderr)
                 continue
             try:
                 if file_id:
-                    print(f"print: image from={sender}", file=sys.stderr)
+                    print(f"The bot prints an image from user {sender}.", file=sys.stderr)
                     emit_image(download(file_id), msg.get("caption"))
                 else:
-                    print(f"print: from={sender} {len(text)} chars", file=sys.stderr)
+                    print(f"The bot prints a message from user {sender}. "
+                          f"The message has {len(text)} characters.", file=sys.stderr)
                     emit(text)
             except OSError as e:                   # printer off, out of paper, unplugged
-                print("printer:", e, file=sys.stderr)
+                print(f"The bot could not send the job to the printer: {e}", file=sys.stderr)
                 try:
                     api("sendMessage", _timeout=10, chat_id=msg["chat"]["id"],
-                        text=f"could not print: {e}")
+                        text=f"The bot could not print your message. "
+                             f"The error was: {e}")
                 except Exception:
                     pass
 
@@ -212,7 +226,7 @@ def selftest():
     blank = rasterize(" ")
     assert not any(blank[i + 3:i + 3 + STRIDE].strip(b"\x00")
                    for i in range(0, len(blank), STRIDE + 3))
-    print(f"ok ({COLS} cols)")
+    print(f"Self-test passed. Each line holds {COLS} characters.")
 
 
 if __name__ == "__main__":
@@ -225,8 +239,8 @@ if __name__ == "__main__":
         rows = rasterize_image(sys.argv[2])
         # dense photos print far slower than text, so wait generously before closing
         send(RASTER_ON + rows + RASTER_OFF + CUT, wait=15)
-        print(f"sent {len(rows)//(STRIDE+3)/8:.0f}mm of image")
+        print(f"The bot sent an image {len(rows)//(STRIDE+3)/8:.0f} mm long.")
     elif arg == "--test-print":
-        emit("test print\nUmlaute: äöüß\nlange zeile " + "abcdefghij " * 8)
+        emit("test print\numlauts: äöüß\nlong line " + "abcdefghij " * 8)
     else:
         main()
