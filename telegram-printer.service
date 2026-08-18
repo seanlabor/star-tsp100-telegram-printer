@@ -1,0 +1,14 @@
+[Unit]
+Description=Print Telegram messages on a Star TSP143
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/telegram-printer.env
+ExecStart=/opt/telegram-printer/.venv/bin/python /opt/telegram-printer/print_bot.py
+Restart=on-failure
+RestartSec=10
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target
